@@ -10,6 +10,7 @@ import {
   isComplete,
   findHint,
   findConflicts,
+  getCandidates,
 } from '../lib/sudoku';
 
 export type GameMode = 'practice' | 'daily' | 'makeup';
@@ -114,6 +115,22 @@ export function useGame(difficulty: Difficulty, mode: GameMode = 'practice') {
         // 普通模式
         nextBoard[selectedCell] = num;
         nextDrafts[selectedCell] = new Set(); // 清除该格草稿
+
+        // 清除同行/列/宫中其他空格的该候选数字
+        const sr = Math.floor(selectedCell / 9);
+        const sc = selectedCell % 9;
+        const br = Math.floor(sr / 3) * 3;
+        const bc = Math.floor(sc / 3) * 3;
+        for (let i = 0; i < 81; i++) {
+          if (i === selectedCell) continue;
+          const r = Math.floor(i / 9);
+          const c = i % 9;
+          if (r === sr || c === sc || (r >= br && r < br + 3 && c >= bc && c < bc + 3)) {
+            if (nextBoard[i] === 0 && nextDrafts[i].has(num)) {
+              nextDrafts[i].delete(num);
+            }
+          }
+        }
       }
 
       // 重新计算错误和冲突
@@ -173,10 +190,28 @@ export function useGame(difficulty: Difficulty, mode: GameMode = 'practice') {
     });
   }, []);
 
-  // 提示
-  const getHint = useCallback(() => {
+  // 一键草稿：给所有空格填入候选数字
+  const autoDraft = useCallback(() => {
     setState(prev => {
       if (!prev) return prev;
+      const boardGrid = flatToGrid(prev.board);
+      const nextDrafts = prev.drafts.map(d => new Set(d));
+      for (let i = 0; i < 81; i++) {
+        if (prev.board[i] === 0) {
+          const r = Math.floor(i / 9);
+          const c = i % 9;
+          const candidates = getCandidates(boardGrid, r, c);
+          nextDrafts[i] = new Set(candidates);
+        }
+      }
+      return { ...prev, drafts: nextDrafts, isDraftMode: false };
+    });
+  }, []);
+
+  // 提示（限制 3 次）
+  const getHint = useCallback(() => {
+    setState(prev => {
+      if (!prev || prev.hintCount >= 3) return prev;
       const boardGrid = flatToGrid(prev.board);
       const solutionGrid = flatToGrid(prev.solution);
       const hint = findHint(boardGrid, solutionGrid);
@@ -221,6 +256,7 @@ export function useGame(difficulty: Difficulty, mode: GameMode = 'practice') {
     enterNumber,
     toggleDraftMode,
     eraseCell,
+    autoDraft,
     getHint,
     getGameData,
     resetGame,

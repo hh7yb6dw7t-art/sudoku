@@ -2,16 +2,22 @@ interface GameToolbarProps {
   isDraftMode: boolean;
   hintCount: number;
   onToggleDraft: () => void;
+  onAutoDraft: () => void;
   onHint: () => void;
   onErase: () => void;
 }
 
-export default function GameToolbar({ isDraftMode, hintCount, onToggleDraft, onHint, onErase }: GameToolbarProps) {
+export default function GameToolbar({
+  isDraftMode, hintCount, onToggleDraft, onAutoDraft, onHint, onErase,
+}: GameToolbarProps) {
+  const hintsLeft = 3 - hintCount;
+  const hintDisabled = hintsLeft <= 0;
+
   return (
-    <div className="flex gap-2 select-none touch-manipulation">
+    <div className="grid grid-cols-4 gap-2 select-none touch-manipulation">
       <button
         onClick={onToggleDraft}
-        className={`flex-1 h-9 rounded-md text-xs font-medium border transition-colors
+        className={`h-9 rounded-md text-xs font-medium border transition-colors
           ${isDraftMode
             ? 'bg-blue-500 text-white border-blue-500'
             : 'bg-white text-gray-600 border-gray-300 active:bg-gray-50'
@@ -20,14 +26,25 @@ export default function GameToolbar({ isDraftMode, hintCount, onToggleDraft, onH
         ✏️ 草稿
       </button>
       <button
-        onClick={onHint}
-        className="flex-1 h-9 rounded-md text-xs font-medium border border-gray-300 bg-white text-gray-600 active:bg-gray-50"
+        onClick={onAutoDraft}
+        className="h-9 rounded-md text-xs font-medium border border-gray-300 bg-white text-gray-600 active:bg-gray-50"
       >
-        💡 提示
+        📝 一键草稿
+      </button>
+      <button
+        onClick={onHint}
+        disabled={hintDisabled}
+        className={`h-9 rounded-md text-xs font-medium border transition-colors
+          ${hintDisabled
+            ? 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed'
+            : 'bg-white text-gray-600 border-gray-300 active:bg-gray-50'
+          }`}
+      >
+        💡 提示({hintsLeft})
       </button>
       <button
         onClick={onErase}
-        className="flex-1 h-9 rounded-md text-xs font-medium border border-gray-300 bg-white text-gray-600 active:bg-gray-50"
+        className="h-9 rounded-md text-xs font-medium border border-gray-300 bg-white text-gray-600 active:bg-gray-50"
       >
         🗑 擦除
       </button>

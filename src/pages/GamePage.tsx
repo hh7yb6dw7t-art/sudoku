@@ -46,7 +46,7 @@ export default function GamePage() {
   }, [path]);
 
   // ── 游戏引擎 + 计时器 ──
-  const { state, error, selectCell, enterNumber, toggleDraftMode, eraseCell, getHint, resetGame } =
+  const { state, error, selectCell, enterNumber, toggleDraftMode, eraseCell, autoDraft, getHint, resetGame } =
     useGame(difficulty, mode);
   const timer = useTimer();
 
@@ -152,7 +152,8 @@ export default function GamePage() {
       <div className="mt-2">
         <GameToolbar
           isDraftMode={state.isDraftMode} hintCount={state.hintCount}
-          onToggleDraft={toggleDraftMode} onHint={getHint} onErase={eraseCell}
+          onToggleDraft={toggleDraftMode} onAutoDraft={autoDraft}
+          onHint={getHint} onErase={eraseCell}
         />
       </div>
       <div className="mt-3">

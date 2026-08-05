@@ -49,25 +49,35 @@ export default function SudokuGrid({
           }
         }
 
-        // 同数字高亮
-        let sameNumber = false;
+        // 同数字高亮（同行列加深）
+        let sameNumberRowCol = false; // 同行/列且数字相同
+        let sameNumberBox = false;    // 同宫但不同行列且数字相同
         if (value !== 0 && selectedCell !== null && selectedCell !== idx) {
           if (board[selectedCell] === value) {
-            sameNumber = true;
+            const sr = Math.floor(selectedCell / 9);
+            const sc = selectedCell % 9;
+            const cr = Math.floor(idx / 9);
+            const cc = idx % 9;
+            if (cr === sr || cc === sc) {
+              sameNumberRowCol = true;
+            } else {
+              sameNumberBox = true;
+            }
           }
         }
 
-        // 背景色
+        // 背景色（优先级：错误 > 选中 > 同数字同行列 > 同数字 > 高亮 > 默认）
         let bgClass = 'bg-white';
         if (isError) {
           bgClass = 'bg-red-100';
         } else if (isSelected) {
           bgClass = 'bg-blue-100';
+        } else if (sameNumberRowCol) {
+          bgClass = 'bg-blue-300/80';
+        } else if (sameNumberBox) {
+          bgClass = 'bg-blue-100/60';
         } else if (isHighlighted) {
           bgClass = 'bg-blue-50/60';
-        }
-        if (sameNumber) {
-          bgClass = 'bg-blue-100/70';
         }
 
         // 文字颜色
