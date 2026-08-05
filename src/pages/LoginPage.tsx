@@ -148,7 +148,7 @@ export default function LoginPage() {
 
     if (codeStr === CORRECT_CODE) {
       login(phone);
-      navigate('/', { replace: true });
+      // 跳转由 useEffect 监听 existingPhone 变化自动完成，不手动 navigate
     } else {
       setOtpError('验证码错误，请重新输入');
       setOtp(Array(CODE_LENGTH).fill(''));
