@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loadRecordsPaginated } from '../lib/storage';
+import { loadRecordsPaginated, getWinLoss } from '../lib/storage';
 import type { GameRecord } from '../hooks/useGame';
 
 const PAGE_SIZE = 20;
@@ -84,6 +84,19 @@ export default function HistoryPage() {
         <span className="text-xs text-gray-400">{records.length} 局</span>
       </div>
 
+      {/* 胜负统计 */}
+      {records.length > 0 && (() => {
+        const { wins, losses } = getWinLoss();
+        const rate = wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0;
+        return (
+          <div className="flex justify-center gap-4 mb-4 text-xs">
+            <span className="text-green-600">🏆 胜 {wins}</span>
+            <span className="text-red-500">💔 负 {losses}</span>
+            <span className="text-gray-500">胜率 {rate}%</span>
+          </div>
+        );
+      })()}
+
       {/* 列表 */}
       {loading && records.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
@@ -117,9 +130,14 @@ export default function HistoryPage() {
                   {DIFF_LABEL[rec.difficulty] || rec.difficulty}
                 </span>
               </div>
-              <span className="text-base font-semibold text-gray-700 tabular-nums">
-                {formatTime(rec.timeSpent)}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs ${rec.won !== false ? 'text-green-500' : 'text-red-400'}`}>
+                  {rec.won !== false ? '✅' : '❌'}
+                </span>
+                <span className="text-base font-semibold text-gray-700 tabular-nums">
+                  {formatTime(rec.timeSpent)}
+                </span>
+              </div>
             </div>
           ))}
 

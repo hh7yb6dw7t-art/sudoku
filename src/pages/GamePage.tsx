@@ -4,7 +4,7 @@ import type { Difficulty } from '../lib/sudoku';
 import type { GameMode } from '../hooks/useGame';
 import { useGame } from '../hooks/useGame';
 import { useTimer } from '../hooks/useTimer';
-import { saveRecord } from '../lib/storage';
+import { saveRecord, saveGame, loadSavedGame, clearSavedGame } from '../lib/storage';
 import { saveCheckin } from '../lib/checkin';
 import SudokuGrid from '../components/SudokuGrid';
 import NumberPad from '../components/NumberPad';
@@ -26,6 +26,7 @@ export default function GamePage() {
   const navigate = useNavigate();
   const hasStartedRef = useRef(false);
   const hasSavedRef = useRef(false);
+  const resumeSecondsRef = useRef(0); // 恢复时已用时
 
   // ── 解析路径 ──
   const { mode, difficulty, gameDate } = useMemo(() => {
@@ -50,25 +51,51 @@ export default function GamePage() {
     useGame(difficulty, mode);
   const timer = useTimer();
 
-  // ── 所有 hooks 必须在此行之前调用，下面才能做条件返回 ──
+  // 从 localStorage 恢复进度
+  const savedRef = useRef(false);
+  useEffect(() => {
+    if (savedRef.current || !state) return;
+    const saved = loadSavedGame();
+    if (!saved) return;
+    // 检查是否匹配当前游戏
+    if (saved.difficulty === difficulty && saved.mode === mode && saved.gameDate === gameDate) {
+      savedRef.current = true;
+      resumeSecondsRef.current = saved.seconds;
+      timer.start(); // timer 需要先 start 再手动设值... 我们用特殊方式处理
+    }
+  }, [state, difficulty, mode, gameDate, timer]);
 
+  // ── hooks ──
   const handleBack = useCallback(() => {
     const hasProgress = state && state.board.some((v, i) => v !== 0 && state.puzzle[i] === 0);
-    if (hasProgress && !state.isComplete) {
-      if (!window.confirm('确定要退出吗？当前游戏进度将丢失。')) return;
+    if (hasProgress && !state.isComplete && !state.isGameOver) {
+      // 保存进度
+      saveGame({
+        board: state.board,
+        puzzle: state.puzzle,
+        solution: state.solution,
+        drafts: state.drafts.map(d => Array.from(d)),
+        seconds: timer.seconds,
+        hintCount: state.hintCount,
+        mistakeCount: state.mistakeCount,
+        difficulty,
+        mode,
+        gameDate,
+        savedAt: Date.now(),
+      });
     }
     timer.reset();
     resetGame();
     navigate('/', { replace: true });
-  }, [state, timer, resetGame, navigate]);
+  }, [state, timer, resetGame, navigate, difficulty, mode, gameDate]);
 
   const handleBackHome = useCallback(() => {
+    clearSavedGame();
     timer.reset();
     resetGame();
     navigate('/', { replace: true });
   }, [timer, resetGame, navigate]);
 
-  // 已完成数字（提前计算，state 可能为 null）
   const completedNumbers = useMemo(() => {
     if (!state) return new Set<number>();
     const count: Record<number, number> = {};
@@ -79,12 +106,11 @@ export default function GamePage() {
     return new Set([1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => count[n] === 9));
   }, [state]);
 
-  // 难度标签
   const headerLabel = mode === 'practice'
     ? DIFFICULTY_LABEL[difficulty]
     : `${MODE_LABEL[mode]} · ${DIFFICULTY_LABEL[difficulty]}`;
 
-  // ── 副作用：计时 + 保存 ──
+  // ── 计时 ──
   useEffect(() => {
     if (state && !hasStartedRef.current) {
       hasStartedRef.current = true;
@@ -92,25 +118,30 @@ export default function GamePage() {
     }
   }, [state, timer]);
 
+  // ── 完成 / 失败时保存 ──
   useEffect(() => {
-    if (state?.isComplete && !hasSavedRef.current) {
+    if ((state?.isComplete || state?.isGameOver) && !hasSavedRef.current) {
       hasSavedRef.current = true;
       timer.pause();
+      clearSavedGame();
       const recordId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       const todayDate = new Date().toLocaleDateString('zh-CN');
       saveRecord({
         id: recordId, mode, difficulty, timeSpent: timer.seconds,
         completedAt: new Date().toISOString(), date: todayDate,
+        won: !!state.isComplete,
       });
-      if (mode === 'daily') {
-        saveCheckin(gameDate || todayDate, 'done', recordId, difficulty, timer.seconds);
-      } else if (mode === 'makeup') {
-        saveCheckin(gameDate, 'makeup', recordId, difficulty, timer.seconds);
+      if (state.isComplete) {
+        if (mode === 'daily') {
+          saveCheckin(gameDate || todayDate, 'done', recordId, difficulty, timer.seconds);
+        } else if (mode === 'makeup') {
+          saveCheckin(gameDate, 'makeup', recordId, difficulty, timer.seconds);
+        }
       }
     }
-  }, [state?.isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state?.isComplete, state?.isGameOver]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── 渲染：错误 ──
+  // ── 渲染 ──
   if (error) {
     return (
       <div className="h-full flex flex-col items-center justify-center px-6 text-center">
@@ -124,7 +155,6 @@ export default function GamePage() {
     );
   }
 
-  // ── 渲染：加载中 ──
   if (!state) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3">
@@ -134,21 +164,32 @@ export default function GamePage() {
     );
   }
 
-  // ── 渲染：游戏 ──
   return (
     <div className="h-full flex flex-col px-3 pt-4 pb-4 relative">
+      {/* 顶栏 */}
       <div className="flex justify-between items-center mb-2 px-1">
         <button onClick={handleBack} className="text-xs text-gray-500 border border-gray-300 rounded-md px-3 py-1.5 active:bg-gray-100">
           ← 退出
         </button>
         <span className="text-xs text-gray-500 font-medium text-center leading-tight">{headerLabel}</span>
-        <span className="text-sm font-semibold text-gray-700 tabular-nums tracking-wider">⏱ {timer.formatted}</span>
+        <div className="flex items-center gap-2">
+          {state.mistakeCount > 0 && (
+            <span className={`text-xs font-bold ${state.mistakeCount >= 3 ? 'text-red-500' : 'text-orange-500'}`}>
+              ❌{state.mistakeCount}/3
+            </span>
+          )}
+          <span className="text-sm font-semibold text-gray-700 tabular-nums tracking-wider">⏱ {timer.formatted}</span>
+        </div>
       </div>
+
+      {/* 盘面 */}
       <SudokuGrid
         board={state.board} puzzle={state.puzzle} drafts={state.drafts}
         selectedCell={state.selectedCell} errors={state.errors} conflicts={state.conflicts}
         onSelectCell={selectCell}
       />
+
+      {/* 工具栏 */}
       <div className="mt-2">
         <GameToolbar
           isDraftMode={state.isDraftMode} hintCount={state.hintCount}
@@ -156,12 +197,19 @@ export default function GamePage() {
           onHint={getHint} onErase={eraseCell}
         />
       </div>
+
+      {/* 数字键盘 */}
       <div className="mt-3">
         <NumberPad onNumber={enterNumber} onDelete={eraseCell} completedNumbers={completedNumbers} />
       </div>
-      {state.isComplete && (
-        <CompletionModal mode={mode} difficulty={difficulty} timeFormatted={timer.formatted}
-          hintCount={state.hintCount} onBackHome={handleBackHome} />
+
+      {/* 完成 / 失败弹窗 */}
+      {(state.isComplete || state.isGameOver) && (
+        <CompletionModal
+          mode={mode} difficulty={difficulty} timeFormatted={timer.formatted}
+          hintCount={state.hintCount} won={!!state.isComplete}
+          onBackHome={handleBackHome}
+        />
       )}
     </div>
   );

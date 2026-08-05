@@ -22,6 +22,7 @@ export interface GameRecord {
   timeSpent: number;
   completedAt: string;
   date?: string;
+  won: boolean;
 }
 
 export interface GameState {
@@ -34,7 +35,9 @@ export interface GameState {
   errors: Set<CellIndex>;   // 答案错误的格子
   conflicts: Set<CellIndex>;// 规则冲突的格子
   isComplete: boolean;
+  isGameOver: boolean;
   hintCount: number;
+  mistakeCount: number;
   difficulty: Difficulty;
   mode: GameMode;
 }
@@ -76,7 +79,9 @@ export function useGame(difficulty: Difficulty, mode: GameMode = 'practice') {
         errors: new Set(),
         conflicts: new Set(),
         isComplete: false,
+        isGameOver: false,
         hintCount: 0,
+        mistakeCount: 0,
         difficulty,
         mode,
       });
@@ -142,10 +147,18 @@ export function useGame(difficulty: Difficulty, mode: GameMode = 'practice') {
         }
       }
 
+      // 计算本次是否填错了（仅普通模式，草稿模式不算错误）
+      let newMistake = false;
+      if (!isDraftMode && nextBoard[selectedCell] !== solution[selectedCell]) {
+        newMistake = true;
+      }
+
       const boardGrid = flatToGrid(nextBoard);
       const nextConflicts = findConflicts(boardGrid);
 
       const completed = isComplete(boardGrid, solutionGrid);
+      const nextMistakeCount = prev.mistakeCount + (newMistake ? 1 : 0);
+      const gameOver = nextMistakeCount >= 3;
 
       return {
         ...prev,
@@ -154,6 +167,8 @@ export function useGame(difficulty: Difficulty, mode: GameMode = 'practice') {
         errors: nextErrors,
         conflicts: nextConflicts,
         isComplete: completed,
+        isGameOver: gameOver,
+        mistakeCount: nextMistakeCount,
       };
     });
   }, []);
