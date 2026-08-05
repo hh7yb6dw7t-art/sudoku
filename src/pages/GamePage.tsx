@@ -1,9 +1,11 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Difficulty } from '../lib/sudoku';
-import { useGame, type GameMode } from '../hooks/useGame';
+import type { GameMode } from '../hooks/useGame';
+import { useGame } from '../hooks/useGame';
 import { useTimer } from '../hooks/useTimer';
 import { saveRecord } from '../lib/storage';
+import { saveCheckin, toISO } from '../lib/checkin';
 import SudokuGrid from '../components/SudokuGrid';
 import NumberPad from '../components/NumberPad';
 import GameToolbar from '../components/GameToolbar';
@@ -13,28 +15,46 @@ const DIFFICULTY_LABEL: Record<string, string> = {
   easy: '简单', medium: '中等', hard: '困难',
 };
 
+const MODE_LABEL: Record<string, string> = {
+  practice: '自由练习',
+  daily: '每日打卡',
+  makeup: '补卡',
+};
+
 export default function GamePage() {
   const { '*': path } = useParams();
   const navigate = useNavigate();
   const hasStartedRef = useRef(false);
   const hasSavedRef = useRef(false);
 
-  // 解析路径：/game/practice/easy 或 /game/daily/2026-08-05 等
-  const [mode, param] = useMemo(() => {
-    if (!path) return ['practice', 'easy'] as [GameMode, string];
+  // 解析路径
+  // practice: /game/practice/easy
+  // daily:    /game/daily/2026-08-05/easy
+  // makeup:   /game/makeup/2026-08-05/medium
+  const { mode, difficulty, gameDate } = useMemo(() => {
+    if (!path) return { mode: 'practice' as GameMode, difficulty: 'easy' as Difficulty, gameDate: '' };
     const parts = path.replace(/^\/+/, '').split('/');
-    return [parts[0] as GameMode, parts[1] || 'easy'] as [GameMode, string];
+    const m = parts[0] as GameMode;
+    if (m === 'practice') {
+      const d = parts[1] || 'easy';
+      return { mode: m, difficulty: (['easy', 'medium', 'hard'].includes(d) ? d : 'easy') as Difficulty, gameDate: '' };
+    }
+    // daily 或 makeup
+    const dateStr = parts[1] || '';
+    const diff = parts[2] || 'easy';
+    return {
+      mode: m,
+      difficulty: (['easy', 'medium', 'hard'].includes(diff) ? diff : 'easy') as Difficulty,
+      gameDate: dateStr,
+    };
   }, [path]);
-
-  const difficulty: Difficulty =
-    ['easy', 'medium', 'hard'].includes(param) ? (param as Difficulty) : 'easy';
 
   const { state, selectCell, enterNumber, toggleDraftMode, eraseCell, getHint, resetGame } =
     useGame(difficulty, mode);
 
   const timer = useTimer();
 
-  // 游戏加载后自动开始计时
+  // 游戏加载后自动计时
   useEffect(() => {
     if (state && !hasStartedRef.current) {
       hasStartedRef.current = true;
@@ -47,14 +67,27 @@ export default function GamePage() {
     if (state?.isComplete && !hasSavedRef.current) {
       hasSavedRef.current = true;
       timer.pause();
+
+      const recordId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const todayDate = new Date().toLocaleDateString('zh-CN');
+
+      // 保存游戏记录
       saveRecord({
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        id: recordId,
         mode,
         difficulty,
         timeSpent: timer.seconds,
         completedAt: new Date().toISOString(),
-        date: new Date().toLocaleDateString('zh-CN'),
+        date: todayDate,
       });
+
+      // 打卡/补卡写入
+      if (mode === 'daily') {
+        const dateToSave = gameDate || todayDate;
+        saveCheckin(dateToSave, 'done', recordId, difficulty, timer.seconds);
+      } else if (mode === 'makeup') {
+        saveCheckin(gameDate, 'makeup', recordId, difficulty, timer.seconds);
+      }
     }
   }, [state?.isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -82,7 +115,7 @@ export default function GamePage() {
     );
   }
 
-  // 计算已完成的数字（9 个全在盘面上且正确）
+  // 已完成数字
   const completedNumbers = useMemo(() => {
     const count: Record<number, number> = {};
     for (let i = 0; i < 81; i++) {
@@ -91,14 +124,17 @@ export default function GamePage() {
         count[v] = (count[v] || 0) + 1;
       }
     }
-    return new Set(
-      [1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => count[n] === 9)
-    );
+    return new Set([1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => count[n] === 9));
   }, [state.board, state.errors]);
+
+  // 难度标签
+  const headerLabel = mode === 'practice'
+    ? DIFFICULTY_LABEL[difficulty]
+    : `${MODE_LABEL[mode]} · ${DIFFICULTY_LABEL[difficulty]}`;
 
   return (
     <div className="h-full flex flex-col px-3 pt-4 pb-4 relative">
-      {/* 顶栏：返回 + 难度 + 计时器 */}
+      {/* 顶栏 */}
       <div className="flex justify-between items-center mb-2 px-1">
         <button
           onClick={handleBack}
@@ -106,8 +142,8 @@ export default function GamePage() {
         >
           ← 退出
         </button>
-        <span className="text-sm text-gray-500 font-medium">
-          {DIFFICULTY_LABEL[difficulty]}
+        <span className="text-xs text-gray-500 font-medium text-center leading-tight">
+          {headerLabel}
         </span>
         <span className="text-sm font-semibold text-gray-700 tabular-nums tracking-wider">
           ⏱ {timer.formatted}
