@@ -52,30 +52,36 @@ export function useGame(difficulty: Difficulty, mode: GameMode = 'practice') {
   const initializedRef = useRef(false);
 
   // 初始化新游戏
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
 
-    const data = generatePuzzle(difficulty);
-    puzzleDataRef.current = data;
+    try {
+      const data = generatePuzzle(difficulty);
+      puzzleDataRef.current = data;
 
-    const flatPuzzle = gridToFlat(data.puzzle);
-    const flatSolution = gridToFlat(data.solution);
+      const flatPuzzle = gridToFlat(data.puzzle);
+      const flatSolution = gridToFlat(data.solution);
 
-    setState({
-      board: [...flatPuzzle],
-      puzzle: [...flatPuzzle],
-      solution: flatSolution,
-      drafts: Array.from({ length: 81 }, () => new Set<number>()),
-      selectedCell: null,
-      isDraftMode: false,
-      errors: new Set(),
-      conflicts: new Set(),
-      isComplete: false,
-      hintCount: 0,
-      difficulty,
-      mode,
-    });
+      setState({
+        board: [...flatPuzzle],
+        puzzle: [...flatPuzzle],
+        solution: flatSolution,
+        drafts: Array.from({ length: 81 }, () => new Set<number>()),
+        selectedCell: null,
+        isDraftMode: false,
+        errors: new Set(),
+        conflicts: new Set(),
+        isComplete: false,
+        hintCount: 0,
+        difficulty,
+        mode,
+      });
+    } catch (e: any) {
+      setError(e.message || '生成题目失败');
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 选中格子
@@ -210,6 +216,7 @@ export function useGame(difficulty: Difficulty, mode: GameMode = 'practice') {
 
   return {
     state,
+    error,
     selectCell,
     enterNumber,
     toggleDraftMode,

@@ -243,6 +243,9 @@ export default function LoginPage() {
       </button>
 
       <p className="text-center text-xs text-gray-400 mt-5">首次登录即自动注册</p>
+      <p className="text-center text-xs text-orange-400 mt-2 bg-orange-50 rounded-md py-1.5 mx-4">
+        💡 验证码：<b className="text-orange-600 tracking-widest">321456</b>（模拟登录，无需短信）
+      </p>
     </div>
   );
 }

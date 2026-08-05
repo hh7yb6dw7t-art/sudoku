@@ -19,7 +19,7 @@ body {
 
 /* 验证码输入格 */
 .otp-box {
-  @apply w-11 h-13 text-center text-xl font-bold border-2 border-gray-300 rounded-lg
+  @apply w-11 h-[52px] text-center text-xl font-bold border-2 border-gray-300 rounded-lg
          focus:border-blue-500 focus:outline-none transition-colors;
 }
 
