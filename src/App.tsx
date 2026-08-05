@@ -21,7 +21,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AuthProvider>
-      <div className="h-full max-w-md mx-auto bg-white relative overflow-hidden">
+      <div className="h-full max-w-md mx-auto bg-white relative overflow-hidden pb-safe">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />

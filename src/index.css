@@ -22,3 +22,25 @@ body {
   @apply w-11 h-13 text-center text-xl font-bold border-2 border-gray-300 rounded-lg
          focus:border-blue-500 focus:outline-none transition-colors;
 }
+
+/* 移动端安全区域适配 */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* 触控优化：禁止长按菜单和文本选择（游戏区域） */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 完成弹窗动画 */
+@keyframes bounce-in {
+  0%   { transform: scale(0.85); opacity: 0; }
+  60%  { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.animate-bounce-in {
+  animation: bounce-in 0.35s ease-out;
+}

@@ -28,3 +28,10 @@ export function getBestTime(difficulty: string): number | null {
   if (records.length === 0) return null;
   return Math.min(...records.map(r => r.timeSpent));
 }
+
+/** 分页加载：返回 { records, hasMore } */
+export function loadRecordsPaginated(limit: number, offset: number): { records: GameRecord[]; hasMore: boolean } {
+  const all = loadRecords();
+  const slice = all.slice(offset, offset + limit);
+  return { records: slice, hasMore: offset + limit < all.length };
+}
